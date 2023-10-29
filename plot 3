@@ -1,0 +1,49 @@
+import os
+import rasterio
+from rasterio.mask import mask
+from rasterio.warp import transform_geom
+from fiona.crs import from_string
+import matplotlib.pyplot as plt
+
+# Define the path to the file
+file_path = "C:\\pycoding\\Data\\00raw\\VNP13A1.A2012017.500 m 16 days NDVI.tif"
+
+# Ensure the file exists
+if not os.path.exists(file_path):
+    print(f"File {file_path} not found. Please check the file path.")
+    exit()
+
+# Define the bounding box (or polygon) for North Korea in WGS84 coordinates
+north_korea_geom = {
+    'type': 'Polygon',
+    'coordinates': [[
+        [124.626082, 37.669080],
+        [124.626082, 42.995388],
+        [130.640015, 42.995388],
+        [130.640015, 37.669080],
+        [124.626082, 37.669080]
+    ]]
+}
+
+# Read the dataset
+with rasterio.open(file_path) as src:
+    # Transform the North Korea bounding box to the same CRS as the raster data
+    transformed_nk_geom = transform_geom(from_string("EPSG:4326"), src.crs, north_korea_geom)
+
+    # Crop the image using the transformed North Korea bounding box
+    out_image, out_transform = mask(src, [transformed_nk_geom], crop=True)
+    out_meta = src.meta.copy()
+
+    # Update the metadata to reflect the new cropped size
+    out_meta.update({
+        "driver": "GTiff",
+        "height": out_image.shape[1],
+        "width": out_image.shape[2],
+        "transform": out_transform
+    })
+
+# Visualize the cropped NDVI data for North Korea
+plt.imshow(out_image[0], cmap='viridis', vmin=-1, vmax=1)
+plt.colorbar(label='NDVI')
+plt.title("NDVI for North Korea (VNP13A1.A2012017)")
+plt.show()

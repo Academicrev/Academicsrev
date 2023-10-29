@@ -1,0 +1,48 @@
+import os
+import rasterio
+from rasterio.warp import calculate_default_transform, reproject, Resampling
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Define the path to the file
+file_path = "C:\\pycoding\\Data\\00raw\\VNP13A1.A2012017.500 m 16 days NDVI.tif"
+
+# Ensure the file exists
+if not os.path.exists(file_path):
+    print(f"File {file_path} not found. Please check the file path.")
+    exit()
+
+# Read the dataset
+with rasterio.open(file_path) as src:
+    
+    # Calculate the ideal transformations and dimensions to reproject
+    transform, width, height = calculate_default_transform(
+        src.crs, 'EPSG:4326', src.width, src.height, *src.bounds)
+    
+    # Define the metadata for the output dataset
+    kwargs = src.meta.copy()
+    kwargs.update({
+        'crs': 'EPSG:4326',
+        'transform': transform,
+        'width': width,
+        'height': height
+    })
+
+    # Create a destination dataset in memory to hold the reprojected NDVI data
+    ndvi_reprojected = np.empty((height, width))
+    
+    reproject(
+        source=rasterio.band(src, 1),  # source band (NDVI)
+        destination=ndvi_reprojected,
+        src_transform=src.transform,
+        src_crs=src.crs,
+        dst_transform=transform,
+        dst_crs='EPSG:4326',
+        resampling=Resampling.bilinear
+    )
+
+# Visualize the reprojected NDVI data
+plt.imshow(ndvi_reprojected, cmap='viridis', vmin=-1, vmax=1)
+plt.colorbar(label='NDVI')
+plt.title("Reprojected NDVI for VNP13A1.A2012017")
+plt.show()

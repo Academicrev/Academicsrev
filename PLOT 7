@@ -1,0 +1,51 @@
+import os
+import rasterio
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Define the path to the file
+file_path = "C:\\pycoding\\Data\\00raw\\VNP13A1.A2012017.500 m 16 days NDVI.tif"
+
+# Ensure the file exists
+if not os.path.exists(file_path):
+    print(f"File {file_path} not found. Please check the file path.")
+    exit()
+
+# Georeferencing based on provided metadata
+# Define upper left corner from metadata
+ulcLon, ulcLat = -124.5, 49.5  # Sample values, replace with actual values if needed
+
+# Define spatial resolution (pixel size)
+yRes, xRes = -926.6254330555555, 926.6254330555555
+
+# Set geotransformation parameters
+geoInfo = (10007554.677, xRes, 0, 5559752.598333, 0, yRes)
+
+# Define the projection (coordinate reference system)
+prj = ('PROJCS["unnamed",'
+       'GEOGCS["Unknown datum based upon the custom spheroid", '
+       'DATUM["Not specified (based on custom spheroid)", '
+       'SPHEROID["Custom spheroid",6371007.181,0]], '
+       'PRIMEM["Greenwich",0],'
+       'UNIT["degree",0.0174532925199433]],'
+       'PROJECTION["Sinusoidal"], '
+       'PARAMETER["longitude_of_center",0], '
+       'PARAMETER["false_easting",0], '
+       'PARAMETER["false_northing",0], '
+       'UNIT["Meter",1]]')
+
+# Read the dataset
+with rasterio.open(file_path) as src:
+    ndvi_data = src.read(1)  # Assuming the NDVI data is in the first band
+
+# Convert the scaled values to the typical NDVI range (-1 to 1)
+ndvi_data_normalized = ndvi_data / 10000.0
+
+# Masking special or NoData values (assuming 9996 is a NoData value)
+ndvi_data_normalized[ndvi_data == 9996] = np.nan
+
+# Visualize the NDVI data
+plt.imshow(ndvi_data_normalized, cmap='viridis', vmin=-1, vmax=1)
+plt.colorbar(label='NDVI')
+plt.title("NDVI for VNP13A1.A2012017")
+plt.show()

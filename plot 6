@@ -1,0 +1,70 @@
+import os
+import rasterio
+from rasterio.mask import mask
+from rasterio.warp import calculate_default_transform, reproject, Resampling
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Define the path to the file
+file_path = "C:\\pycoding\\Data\\00raw\\VNP13A1.A2012017.500 m 16 days NDVI.tif"
+
+# Ensure the file exists
+if not os.path.exists(file_path):
+    print(f"File {file_path} not found. Please check the file path.")
+    exit()
+
+# Read the dataset
+with rasterio.open(file_path) as src:
+    # Calculate the ideal transformations and dimensions to reproject
+    transform, width, height = calculate_default_transform(
+        src.crs, 'EPSG:4326', src.width, src.height, *src.bounds)
+
+    # Define the metadata for the output dataset
+    kwargs = src.meta.copy()
+    kwargs.update({
+        'crs': 'EPSG:4326',
+        'transform': transform,
+        'width': width,
+        'height': height
+    })
+
+    # Create a destination dataset in memory to hold the reprojected NDVI data
+    ndvi_reprojected = np.empty((height, width))
+
+    reproject(
+        source=rasterio.band(src, 1),  # source band (NDVI)
+        destination=ndvi_reprojected,
+        src_transform=src.transform,
+        src_crs=src.crs,
+        dst_transform=transform,
+        dst_crs='EPSG:4326',
+        resampling=Resampling.bilinear
+    )
+
+# Define forest NDVI threshold (usually > 0.3 or 0.4 indicates forest)
+forest_threshold = 0.4
+forest_mask = ndvi_reprojected > forest_threshold
+
+# Define the bounding box (or polygon) for North Korea
+north_korea_geom = {
+    'type': 'Polygon',
+    'coordinates': [[
+        [124.626082, 37.669080],
+        [124.626082, 42.995388],
+        [130.640015, 42.995388],
+        [130.640015, 37.669080],
+        [124.626082, 37.669080]
+    ]]
+}
+
+# Crop the forest mask using rasterio's mask function
+with rasterio.io.MemoryFile() as memfile:
+    with memfile.open(**kwargs) as dataset:
+        dataset.write(forest_mask.astype(rasterio.uint8), 1)
+        forest_cropped, _ = mask(dataset, [north_korea_geom], crop=True)
+
+# Visualize the cropped and reprojected forest areas for North Korea
+plt.imshow(forest_cropped[0], cmap='Greens')
+plt.colorbar(label='Forest Area')
+plt.title("Reprojected Forest Areas in North Korea (VNP13A1.A2012017)")
+plt.show()

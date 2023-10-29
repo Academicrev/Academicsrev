@@ -1,0 +1,69 @@
+import os
+import rasterio
+from rasterio.mask import mask
+from rasterio.warp import calculate_default_transform, reproject, Resampling
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Define the path to the file
+file_path = "C:\\pycoding\\Data\\00raw\\VNP13A1.A2012017.500 m 16 days NDVI.tif"
+
+# Ensure the file exists
+if not os.path.exists(file_path):
+    print(f"File {file_path} not found. Please check the file path.")
+    exit()
+
+# Read the dataset
+with rasterio.open(file_path) as src:
+    # Read NDVI data and scale it to the typical NDVI range (-1 to 1)
+    ndvi_data = (src.read(1) / 10000.0) * 2 - 1
+
+    # Calculate the ideal transformations and dimensions to reproject
+    transform, width, height = calculate_default_transform(
+        src.crs, 'EPSG:4326', src.width, src.height, *src.bounds)
+
+    # Define the metadata for the output dataset
+    kwargs = src.meta.copy()
+    kwargs.update({
+        'crs': 'EPSG:4326',
+        'transform': transform,
+        'width': width,
+        'height': height
+    })
+
+    # Create a destination dataset in memory to hold the reprojected NDVI data
+    ndvi_reprojected = np.empty((height, width))
+
+    reproject(
+        source=ndvi_data,
+        destination=ndvi_reprojected,
+        src_transform=src.transform,
+        src_crs=src.crs,
+        dst_transform=transform,
+        dst_crs='EPSG:4326',
+        resampling=Resampling.bilinear
+    )
+
+# Define the bounding box (or polygon) for North Korea
+north_korea_geom = {
+    'type': 'Polygon',
+    'coordinates': [[
+        [124.626082, 37.669080],
+        [124.626082, 42.995388],
+        [130.640015, 42.995388],
+        [130.640015, 37.669080],
+        [124.626082, 37.669080]
+    ]]
+}
+
+# Using rasterio's mask function to crop the reprojected data
+with rasterio.io.MemoryFile() as memfile:
+    with memfile.open(**kwargs) as dataset:
+        dataset.write(ndvi_reprojected, 1)
+        cropped_image, _ = mask(dataset, [north_korea_geom], crop=True)
+
+# Visualize the cropped and reprojected NDVI data for North Korea
+plt.imshow(cropped_image[0], cmap='viridis', vmin=-1, vmax=1)
+plt.colorbar(label='NDVI')
+plt.title("Reprojected NDVI for North Korea (VNP13A1.A2012017)")
+plt.show()
